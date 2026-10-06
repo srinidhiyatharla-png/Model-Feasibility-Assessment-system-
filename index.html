@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model Feasibility Assessment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one centered column. Header (title + History toggle), then either the form card with the result card below it, or the history table. */
+:root {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --fg: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --field: #ffffff;
+  --primary: #000000;
+  --primary-fg: #ffffff;
+  --danger: #dc2626;
+  --focus: #0f172a;
+  --track: #e2e8f0;
+  --head-bg: #f8fafc;
+  --hard-bg: #fee2e2; --hard-fg: #b91c1c; --hard-line: #fecaca;
+  --silent-bg: #fef3c7; --silent-fg: #b45309; --silent-line: #fde68a;
+  --ok-bg: #dcfce7; --ok-fg: #15803d; --ok-line: #bbf7d0;
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1020; --surface: #121a2e; --fg: #e8edf7; --muted: #93a1ba; --line: #26314a;
+    --field: #0e1526; --primary: #f1f5f9; --primary-fg: #0b1020; --danger: #f87171; --focus: #e2e8f0;
+    --track: #26314a; --head-bg: #0e1526;
+    --hard-bg: #3b1417; --hard-fg: #fca5a5; --hard-line: #5b1f24;
+    --silent-bg: #3a2a0b; --silent-fg: #fcd34d; --silent-line: #5c4312;
+    --ok-bg: #0f2f1d; --ok-fg: #86efac; --ok-line: #1a4a2e;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b1020; --surface: #121a2e; --fg: #e8edf7; --muted: #93a1ba; --line: #26314a;
+  --field: #0e1526; --primary: #f1f5f9; --primary-fg: #0b1020; --danger: #f87171; --focus: #e2e8f0;
+  --track: #26314a; --head-bg: #0e1526;
+  --hard-bg: #3b1417; --hard-fg: #fca5a5; --hard-line: #5b1f24;
+  --silent-bg: #3a2a0b; --silent-fg: #fcd34d; --silent-line: #5c4312;
+  --ok-bg: #0f2f1d; --ok-fg: #86efac; --ok-line: #1a4a2e;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font); font-size: 15px; line-height: 1.5;
+  padding-inline: 20px; padding-block: 28px 56px;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 880px; margin-inline: auto; display: flex; flex-direction: column; gap: 24px; }
+header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.titles { min-width: 0; flex: 1 1 320px; }
+h1 { margin: 0; font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -0.02em; text-wrap: balance; }
+.sub { margin: 8px 0 0; color: var(--muted); font-size: 16px; }
+.ghost {
+  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px;
+  background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 12px;
+  font: inherit; font-weight: 500; cursor: pointer;
+}
+.ghost:hover { border-color: var(--muted); }
+.ghost svg { width: 18px; height: 18px; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 32px; }
+.card h2 { margin: 0 0 24px; font-size: 22px; font-weight: 650; letter-spacing: -0.01em; }
+form { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 20px; }
+.field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.field.full { grid-column: 1 / -1; }
+label { font-weight: 500; font-size: 15px; }
+label .req { color: #dc2626; margin-left: 2px; }
+label .opt { color: var(--muted); font-weight: 400; }
+input, select {
+  width: 100%; height: 46px; padding: 0 14px; font: inherit; color: var(--fg);
+  background: var(--field); border: 1px solid var(--line); border-radius: 12px; appearance: none; -webkit-appearance: none;
+}
+input:focus, select:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 2px var(--focus); }
+input[aria-invalid="true"] { border-color: var(--danger); }
+input[aria-invalid="true"]:focus { box-shadow: 0 0 0 2px var(--danger); }
+.sel { position: relative; }
+.sel select { padding-right: 40px; cursor: pointer; }
+.sel svg { position: absolute; right: 14px; top: 50%; width: 18px; height: 18px; transform: translateY(-50%); pointer-events: none; color: var(--muted); }
+.err { color: var(--danger); font-size: 13px; min-height: 0; margin: 0; }
+.err:empty { display: none; }
+.primary {
+  grid-column: 1 / -1; height: 50px; margin-top: 6px; border: 0; border-radius: 12px; cursor: pointer;
+  background: var(--primary); color: var(--primary-fg); font: inherit; font-weight: 650; font-size: 16px;
+}
+.primary:disabled { opacity: .65; cursor: progress; }
+.primary:hover:not(:disabled) { opacity: .88; }
+
+/* Result */
+.result { display: flex; flex-direction: column; gap: 26px; }
+.verdict { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center; }
+.pct { font-size: 64px; line-height: 1; font-weight: 700; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.pct small { font-size: 28px; font-weight: 600; margin-left: 2px; }
+.pct-label { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+.vtext { min-width: 0; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.vtext h3 { margin: 0; font-size: 20px; font-weight: 650; text-wrap: balance; }
+.vtext p { margin: 0; color: var(--muted); max-width: 60ch; }
+.badge { display: inline-block; padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: 14px; border: 1px solid; white-space: nowrap; }
+.badge.hard { background: var(--hard-bg); color: var(--hard-fg); border-color: var(--hard-line); }
+.badge.silent { background: var(--silent-bg); color: var(--silent-fg); border-color: var(--silent-line); }
+.badge.ok { background: var(--ok-bg); color: var(--ok-fg); border-color: var(--ok-line); }
+.meter { height: 8px; border-radius: 99px; background: var(--track); overflow: hidden; }
+.meter > i { display: block; height: 100%; border-radius: 99px; }
+.meter > i.hard { background: var(--hard-fg); } .meter > i.silent { background: var(--silent-fg); } .meter > i.ok { background: var(--ok-fg); }
+.factors { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.factor { display: grid; grid-template-columns: 150px 120px 1fr; gap: 8px 20px; align-items: center; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.factor b { font-weight: 600; }
+.factor span.msg { color: var(--muted); font-size: 14px; min-width: 0; }
+.sect { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; margin: 0 0 10px; }
+.suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.chip { font-family: var(--mono); font-size: 13px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); }
+.apply { margin-left: auto; height: 38px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-weight: 600; cursor: pointer; }
+.apply:hover { border-color: var(--muted); }
+.note { color: var(--muted); font-size: 13px; margin: 0; }
+
+/* History */
+.hist-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.hist-head h2 { margin: 0; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+table { width: 100%; min-width: 760px; border-collapse: collapse; }
+th { text-align: left; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 16px 18px; background: var(--head-bg); border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 16px 18px; border-bottom: 1px solid var(--line); white-space: nowrap; font-variant-numeric: tabular-nums; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--head-bg); }
+td.p { font-weight: 700; }
+td.t { color: var(--muted); }
+.empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+.link { background: none; border: 0; color: var(--muted); font: inherit; text-decoration: underline; cursor: pointer; padding: 6px; }
+.foot { color: var(--muted); font-size: 13px; margin: 0; }
+
+@media (max-width: 640px) {
+  .card { padding: 22px 18px; border-radius: 18px; }
+  form { grid-template-columns: 1fr; }
+  h1 { font-size: 26px; }
+  .verdict { grid-template-columns: 1fr; gap: 16px; }
+  .factor { grid-template-columns: 1fr 90px; }
+  .factor span.msg { grid-column: 1 / -1; }
+  .apply { margin-left: 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .meter > i { transition: width .6s ease; }
+}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="titles">
+      <h1>Model Feasibility Assessment</h1>
+      <p class="sub">Enter your training hyperparameters to predict the likelihood of success.</p>
+    </div>
+    <button type="button" class="ghost" id="histBtn" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span id="histBtnText">History</span>
+    </button>
+  </header>
+
+  <main id="formView" class="wrap" style="gap:24px">
+    <section class="card" aria-labelledby="cfgTitle">
+      <h2 id="cfgTitle">Training Configuration</h2>
+      <form id="cfg" novalidate>
+        <div class="field full">
+          <label for="model">Model / Task Type <span class="req">*</span></label>
+          <div class="sel">
+            <select id="model">
+              <option value="transformer">Transformer / LLM</option>
+              <option value="cnn">CNN Image Classifier</option>
+              <option value="resnet">ResNet</option>
+              <option value="mlp">Tabular MLP</option>
+              <option value="rnn">RNN / LSTM</option>
+            </select>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+        </div>
+        <div class="field">
+          <label for="lr">Learning Rate <span class="req">*</span></label>
+          <input id="lr" type="text" inputmode="decimal" value="0.001" autocomplete="off">
+          <p class="err" id="e-lr"></p>
+        </div>
+        <div class="field">
+          <label for="batch">Batch Size <span class="req">*</span></label>
+          <input id="batch" type="text" inputmode="numeric" value="32" autocomplete="off">
+          <p class="err" id="e-batch"></p>
+        </div>
+        <div class="field">
+          <label for="epochs">Number of Epochs <span class="req">*</span></label>
+          <input id="epochs" type="text" inputmode="numeric" value="10" autocomplete="off">
+          <p class="err" id="e-epochs"></p>
+        </div>
+        <div class="field">
+          <label for="opt">Optimizer <span class="req">*</span></label>
+          <div class="sel">
+            <select id="opt">
+              <option value="sgd" selected>SGD</option>
+              <option value="adam">Adam</option>
+              <option value="adamw">AdamW</option>
+              <option value="rmsprop">RMSprop</option>
+            </select>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+        </div>
+        <div class="field">
+          <label for="ds">Dataset Size <span class="opt">(optional)</span></label>
+          <input id="ds" type="text" inputmode="numeric" value="50000" autocomplete="off">
+          <p class="err" id="e-ds"></p>
+        </div>
+        <div class="field">
+          <label for="drop">Dropout Rate <span class="opt">(optional, 0–1)</span></label>
+          <input id="drop" type="text" inputmode="decimal" value="0.1" autocomplete="off">
+          <p class="err" id="e-drop"></p>
+        </div>
+        <div class="field full">
+          <label for="wd">Weight Decay <span class="opt">(optional)</span></label>
+          <input id="wd" type="text" inputmode="decimal" value="0.0001" autocomplete="off">
+          <p class="err" id="e-wd"></p>
+        </div>
+        <button type="submit" class="primary" id="predict">Predict</button>
+      </form>
+    </section>
+
+    <section class="card result" id="resultCard" aria-live="polite" hidden></section>
+    <p class="foot">This is a simulation. Probabilities come from a rule-based heuristic over typical hyperparameter ranges, not from a trained predictor.</p>
+  </main>
+
+  <main id="histView" hidden>
+    <div class="hist-head">
+      <h2 style="font-size:22px;font-weight:650">Past assessments</h2>
+      <button type="button" class="link" id="clearBtn">Clear history</button>
+    </div>
+    <p class="note" style="margin:0 0 14px">Select a row to load its settings back into the form.</p>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Model type</th><th>LR</th><th>Batch</th><th>Epochs</th><th>Optimizer</th><th>Probability</th><th>Failure mode</th></tr>
+        </thead>
+        <tbody id="histBody"></tbody>
+      </table>
+      <div class="empty" id="histEmpty" hidden>No assessments yet. Run a prediction to see it here.</div>
+    </div>
+  </main>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  // Typical-range profiles. lr is the usual stable value for Adam; SGD and RMSprop are scaled from it.
+  var PROFILES = {
+    transformer: { label: 'Transformer / LLM', lr: 3e-4, batch: 64, epochs: 10, drop: 0.1, minData: 100000, cap: 0.98,
+      opt: { adamw: 1, adam: 0.92, rmsprop: 0.35, sgd: 0.25 } },
+    cnn: { label: 'CNN Image Classifier', lr: 1e-3, batch: 64, epochs: 30, drop: 0.25, minData: 20000, cap: 0.98,
+      opt: { adam: 1, adamw: 1, sgd: 0.88, rmsprop: 0.75 } },
+    resnet: { label: 'ResNet', lr: 1e-3, batch: 64, epochs: 30, drop: 0.1, minData: 30000, cap: 0.98,
+      opt: { adamw: 1, adam: 0.95, sgd: 0.95, rmsprop: 0.6 } },
+    mlp: { label: 'Tabular MLP', lr: 1e-3, batch: 64, epochs: 50, drop: 0.2, minData: 5000, cap: 0.98,
+      opt: { adam: 1, adamw: 1, sgd: 0.8, rmsprop: 0.85 } },
+    rnn: { label: 'RNN / LSTM', lr: 1e-3, batch: 64, epochs: 25, drop: 0.25, minData: 20000, cap: 0.98,
+      opt: { adam: 1, adamw: 0.95, rmsprop: 0.95, sgd: 0.4 } }
+  };
+  var OPT_NAMES = { sgd: 'SGD', adam: 'Adam', adamw: 'AdamW', rmsprop: 'RMSprop' };
+  var OPT_LR_SCALE = { sgd: 30, adam: 1, adamw: 1, rmsprop: 0.5 };
+  var MODE_LABEL = { hard: 'Hard Failure Risk', silent: 'Silent Failure Risk', ok: 'Likely Success' };
+
+  var KEY = 'mfa-history-v1';
+  var SEEDS = [
+    { t: '05 Oct, 21:32', model: 'mlp', lr: 4, batch: 18, epochs: 2, opt: 'adam', p: 0, mode: 'hard' },
+    { t: '05 Oct, 21:30', model: 'resnet', lr: 0.1, batch: 8, epochs: 2, opt: 'adam', p: 0, mode: 'hard' },
+    { t: '05 Oct, 21:27', model: 'transformer', lr: 1e-5, batch: 32, epochs: 5, opt: 'adam', p: 0, mode: 'silent' },
+    { t: '05 Oct, 21:20', model: 'cnn', lr: 0.001, batch: 32, epochs: 30, opt: 'adam', p: 89, mode: 'ok' }
+  ];
+  var history = loadHistory();
+
+  function loadHistory() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) { var a = JSON.parse(raw); if (Array.isArray(a)) return a; }
+    } catch (e) {}
+    return SEEDS.slice();
+  }
+  function saveHistory() { try { localStorage.setItem(KEY, JSON.stringify(history)); } catch (e) {} }
+
+  function fmtNum(x) {
+    if (x === 0) return '0';
+    var a = Math.abs(x);
+    if (a >= 0.001 && a < 100000) return String(+x.toPrecision(3));
+    return x.toExponential(0).replace('e+', 'e');
+  }
+  function parse(s) { s = String(s == null ? '' : s).trim(); return s === '' ? NaN : Number(s); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+
+  function readForm() {
+    return {
+      model: $('model').value, opt: $('opt').value,
+      lr: parse($('lr').value), batch: parse($('batch').value), epochs: parse($('epochs').value),
+      ds: parse($('ds').value), drop: parse($('drop').value), wd: parse($('wd').value),
+      raw: { ds: $('ds').value.trim(), drop: $('drop').value.trim(), wd: $('wd').value.trim() }
+    };
+  }
+
+  function validate(c) {
+    var e = {};
+    if (isNaN(c.lr)) e.lr = 'Enter a number, for example 0.001 or 1e-4.';
+    else if (c.lr <= 0) e.lr = 'Learning rate must be greater than 0.';
+    if (isNaN(c.batch) || c.batch < 1 || Math.floor(c.batch) !== c.batch) e.batch = 'Enter a whole number of 1 or more.';
+    if (isNaN(c.epochs) || c.epochs < 1 || Math.floor(c.epochs) !== c.epochs) e.epochs = 'Enter a whole number of 1 or more.';
+    if (c.raw.ds !== '' && (isNaN(c.ds) || c.ds < 1 || Math.floor(c.ds) !== c.ds)) e.ds = 'Enter a whole number of 1 or more, or leave blank.';
+    if (c.raw.drop !== '' && (isNaN(c.drop) || c.drop < 0 || c.drop >= 1)) e.drop = 'Dropout must be at least 0 and below 1.';
+    if (c.raw.wd !== '' && (isNaN(c.wd) || c.wd < 0)) e.wd = 'Weight decay must be 0 or more.';
+    if (!e.batch && !e.ds && c.raw.ds !== '' && c.batch > c.ds) e.batch = 'Batch size cannot be larger than the dataset.';
+    return e;
+  }
+
+  function state(s) { return s >= 0.75 ? 'ok' : s >= 0.4 ? 'silent' : 'hard'; }
+
+  function assess(c) {
+    var pr = PROFILES[c.model];
+    var hard = false, factors = [];
+    var lrEff = pr.lr * OPT_LR_SCALE[c.opt];
+    var d = Math.log10(c.lr / lrEff);
+    var er = c.epochs / pr.epochs;
+    var u = d + (er < 1 ? 0.5 * Math.log10(er) : 0);
+    var lrS = d > 0 ? Math.exp(-d * d / 0.72) : Math.exp(-u * u / 0.5);
+    var lrMsg;
+    if (d > 1.2) {
+      hard = true;
+      lrMsg = fmtNum(c.lr) + ' is roughly ' + Math.round(Math.pow(10, d)) + '× above a stable value for ' + OPT_NAMES[c.opt] + ' on this model. Loss is likely to blow up to NaN.';
+    } else if (d > 0.5) {
+      lrMsg = 'High for ' + OPT_NAMES[c.opt] + '. Training may oscillate or spike early.';
+    } else if (u < -0.8) {
+      lrMsg = 'Very low for this setup. Weights barely move, so loss looks calm while the model learns almost nothing.';
+    } else if (u < -0.4) {
+      lrMsg = 'On the low side. Convergence will be slow within this epoch budget.';
+    } else {
+      lrMsg = 'Inside the usual range for ' + OPT_NAMES[c.opt] + ' on ' + pr.label + '.';
+    }
+    factors.push({ name: 'Learning rate', s: lrS, msg: lrMsg });
+
+    var oS = pr.opt[c.opt];
+    factors.push({ name: 'Optimizer', s: oS, msg: oS >= 0.8
+      ? OPT_NAMES[c.opt] + ' is a solid choice for ' + pr.label + '.'
+      : OPT_NAMES[c.opt] + ' is a weak fit for ' + pr.label + '. Adaptive optimizers converge more reliably here.' });
+
+    var eS = er < 1 ? Math.pow(er, 0.5) : (er > 4 ? 0.85 : 1);
+    factors.push({ name: 'Epochs', s: eS, msg: er < 1
+      ? c.epochs + ' epochs is short. Models like this usually need about ' + pr.epochs + '.'
+      : er > 4 ? 'Far longer than usual. Watch for overfitting and use early stopping.' : 'Enough passes over the data to converge.' });
+
+    var db = Math.log10(c.batch / pr.batch);
+    var bS = Math.exp(-db * db / 2.88);
+    factors.push({ name: 'Batch size', s: bS, msg: bS >= 0.75
+      ? 'Close to the typical ' + pr.batch + '.'
+      : (db < 0 ? 'Small batches give noisy gradients and slow epochs.' : 'Very large batches tend to generalize worse unless the learning rate is scaled.') });
+
+    var dS = 0.98, dMsg = 'Not provided. Assuming a sensible default.';
+    if (c.raw.drop !== '') {
+      if (c.drop > 0.6) { dS = Math.max(0.05, 1 - (c.drop - 0.5) * 2.5); dMsg = 'Dropout this high removes most of the signal. The model will underfit.'; }
+      else { dS = 0.85 + 0.15 * Math.exp(-Math.pow(c.drop - pr.drop, 2) / (2 * 0.0625)); dMsg = 'Reasonable regularization.'; }
+    }
+    var wS = 0.98, wMsg = '';
+    if (c.raw.wd !== '') {
+      if (c.wd > 0.1) { wS = 0.3; wMsg = 'Weight decay above 0.1 shrinks weights faster than they can learn.'; }
+      else { wS = 1; wMsg = 'Weight decay is in a safe range.'; }
+    }
+    factors.push({ name: 'Regularization', s: dS * wS, msg: (c.raw.wd !== '' && c.wd > 0.1) ? wMsg : dMsg });
+
+    var sS = 0.98, sMsg = 'Not provided. Assuming enough data.';
+    if (c.raw.ds !== '') {
+      var r = c.ds / pr.minData;
+      sS = r >= 1 ? 1 : 0.55 + 0.45 * Math.sqrt(r);
+      sMsg = r >= 1 ? 'Large enough for this model type.' : (r < 0.3 ? 'Small for ' + pr.label + '. Expect overfitting or reliance on pretrained weights.' : 'Slightly below the usual ' + pr.minData.toLocaleString('en-US') + ' examples.');
+    }
+    factors.push({ name: 'Dataset size', s: sS, msg: sMsg });
+
+    var p = pr.cap;
+    factors.forEach(function (f) { p *= f.s; });
+    if (hard) p *= 0.03;
+    p = Math.max(0, Math.min(0.99, p));
+    var mode = hard ? 'hard' : (p >= 0.5 ? 'ok' : 'silent');
+
+    var bestOpt = c.opt;
+    if (pr.opt[c.opt] < 0.8) {
+      bestOpt = Object.keys(pr.opt).reduce(function (a, b) { return pr.opt[a] >= pr.opt[b] ? a : b; });
+    }
+    var sug = { opt: bestOpt, lr: pr.lr * OPT_LR_SCALE[bestOpt], batch: pr.batch, epochs: Math.max(c.epochs, pr.epochs) };
+    return { p: p, mode: mode, factors: factors, sug: sug, label: pr.label };
+  }
+
+  var HEAD = {
+    ok: ['Likely to train successfully', 'The configuration sits inside the range that usually converges.'],
+    hard: ['Training is likely to crash or diverge', 'Expect NaN loss, or a loss that climbs from the first epochs.'],
+    silent: ['Training will run but is unlikely to learn', 'No error is raised, so the run can look healthy while accuracy stays near baseline.']
+  };
+
+  function renderResult(res, c) {
+    var pct = Math.round(res.p * 100);
+    var h = HEAD[res.mode];
+    var html = '';
+    html += '<div class="verdict"><div><div class="pct-label">Probability of success</div><div class="pct">' + pct + '<small>%</small></div></div>';
+    html += '<div class="vtext"><span class="badge ' + res.mode + '">' + MODE_LABEL[res.mode] + '</span><h3>' + h[0] + '</h3><p>' + h[1] + '</p></div></div>';
+    html += '<div class="meter" role="img" aria-label="Probability ' + pct + ' percent"><i class="' + res.mode + '" style="width:' + Math.max(pct, 1) + '%"></i></div>';
+    html += '<div><p class="sect">What drives this result</p><div class="factors">';
+    res.factors.forEach(function (f) {
+      var st = state(f.s);
+      html += '<div class="factor"><b>' + f.name + '</b><div class="meter" aria-hidden="true"><i class="' + st + '" style="width:' + Math.round(f.s * 100) + '%"></i></div><span class="msg">' + esc(f.msg) + '</span></div>';
+    });
+    html += '</div></div>';
+    if (res.mode !== 'ok') {
+      var s = res.sug;
+      html += '<div><p class="sect">Suggested starting point</p><div class="suggest">' +
+        '<span class="chip">' + OPT_NAMES[s.opt] + '</span><span class="chip">lr ' + fmtNum(s.lr) + '</span><span class="chip">batch ' + s.batch + '</span><span class="chip">' + s.epochs + ' epochs</span>' +
+        '<button type="button" class="apply" id="applyBtn">Apply to form</button></div></div>';
+    } else {
+      html += '<p class="note">No changes needed. Validate with a short pilot run before committing the full budget.</p>';
+    }
+    var card = $('resultCard');
+    card.innerHTML = html;
+    card.hidden = false;
+    var ab = $('applyBtn');
+    if (ab) ab.addEventListener('click', function () {
+      $('opt').value = res.sug.opt; $('lr').value = fmtNum(res.sug.lr);
+      $('batch').value = res.sug.batch; $('epochs').value = res.sug.epochs;
+      $('predict').focus();
+    });
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    try { card.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' }); } catch (e) {}
+  }
+
+  function stamp() {
+    var d = new Date();
+    try {
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) + ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return 'Just now'; }
+  }
+
+  function renderHistory() {
+    var body = $('histBody');
+    body.innerHTML = '';
+    $('histEmpty').hidden = history.length > 0;
+    history.forEach(function (h, i) {
+      var tr = document.createElement('tr');
+      tr.tabIndex = 0;
+      tr.setAttribute('data-i', i);
+      tr.innerHTML = '<td class="t">' + esc(h.t) + '</td><td>' + esc(PROFILES[h.model] ? PROFILES[h.model].label : h.model) + '</td><td>' + esc(fmtNum(h.lr)) +
+        '</td><td>' + esc(h.batch) + '</td><td>' + esc(h.epochs) + '</td><td>' + esc(OPT_NAMES[h.opt] || h.opt) + '</td><td class="p">' + esc(h.p) + '%</td><td><span class="badge ' + h.mode + '">' + MODE_LABEL[h.mode] + '</span></td>';
+      body.appendChild(tr);
+    });
+  }
+
+  function loadRow(i) {
+    var h = history[i]; if (!h) return;
+    $('model').value = h.model; $('opt').value = h.opt;
+    $('lr').value = fmtNum(h.lr); $('batch').value = h.batch; $('epochs').value = h.epochs;
+    $('ds').value = h.ds != null ? h.ds : ''; $('drop').value = h.drop != null ? h.drop : ''; $('wd').value = h.wd != null ? h.wd : '';
+    showView(false);
+  }
+  $('histBody').addEventListener('click', function (e) { var tr = e.target.closest('tr'); if (tr) loadRow(+tr.getAttribute('data-i')); });
+  $('histBody').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { var tr = e.target.closest('tr'); if (tr) { e.preventDefault(); loadRow(+tr.getAttribute('data-i')); } }
+  });
+  $('clearBtn').addEventListener('click', function () { history = []; saveHistory(); renderHistory(); });
+
+  var showingHistory = false;
+  function showView(h) {
+    showingHistory = h;
+    $('formView').hidden = h; $('histView').hidden = !h;
+    $('histBtn').setAttribute('aria-pressed', String(h));
+    $('histBtnText').textContent = h ? 'New assessment' : 'History';
+    if (h) renderHistory();
+  }
+  $('histBtn').addEventListener('click', function () { showView(!showingHistory); });
+
+  var IDS = ['lr', 'batch', 'epochs', 'ds', 'drop', 'wd'];
+  IDS.forEach(function (id) {
+    $(id).addEventListener('input', function () { $(id).removeAttribute('aria-invalid'); $('e-' + id).textContent = ''; });
+  });
+
+  $('cfg').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var c = readForm();
+    var errs = validate(c);
+    IDS.forEach(function (id) {
+      var m = errs[id] || '';
+      $('e-' + id).textContent = m;
+      if (m) $(id).setAttribute('aria-invalid', 'true'); else $(id).removeAttribute('aria-invalid');
+    });
+    var first = IDS.filter(function (id) { return errs[id]; })[0];
+    if (first) { $(first).focus(); return; }
+    var btn = $('predict');
+    btn.disabled = true; btn.textContent = 'Analyzing…';
+    setTimeout(function () {
+      var res = assess(c);
+      renderResult(res, c);
+      history.unshift({ t: stamp(), model: c.model, lr: c.lr, batch: c.batch, epochs: c.epochs, opt: c.opt,
+        p: Math.round(res.p * 100), mode: res.mode,
+        ds: c.raw.ds === '' ? null : c.ds, drop: c.raw.drop === '' ? null : c.drop, wd: c.raw.wd === '' ? null : c.wd });
+      history = history.slice(0, 30);
+      saveHistory();
+      btn.disabled = false; btn.textContent = 'Predict';
+    }, 650);
+  });
+
+  renderHistory();
+})();
+</script>
+</body>
+</html>
