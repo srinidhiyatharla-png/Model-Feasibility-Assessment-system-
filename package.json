@@ -1,0 +1,11 @@
+{
+  "name": "model-feasibility-assessment",
+  "version": "1.0.0",
+  "description": "Simulation of a model feasibility assessment system: predicts the likelihood that a training run succeeds.",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js"
+  },
+  "engines": { "node": ">=16" },
+  "license": "MIT"
+}
